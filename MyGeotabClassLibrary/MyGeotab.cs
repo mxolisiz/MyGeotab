@@ -243,7 +243,7 @@ namespace MyGeotabClassLibrary
     {
         public string Server { get; set; }
         /// <summary>
-        /// Passing this as true will attempt to authenticate the MyGeotab credentials with the supplied credentials
+        /// Passing this as true will attempt to authenticate the MyGeotab API with the supplied credentials
         /// </summary>
         public bool Authenticate { get; set; }
     }
