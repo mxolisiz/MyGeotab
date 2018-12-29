@@ -1,12 +1,16 @@
-﻿using System;
+﻿using Geotab.Checkmate;
+using Geotab.Checkmate.ObjectModel;
+using Geotab.Checkmate.ObjectModel.Engine;
+using Geotab.Checkmate.ObjectModel.Exceptions;
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Net.Http;
+using System.Runtime.Caching;
 
 namespace MyGeotabClassLibrary
 {
-    public sealed class MyGeotab
+    public class MyGeotab
     {
         private User loggedInUser = (User)null;
         private API _api;
@@ -25,7 +29,7 @@ namespace MyGeotabClassLibrary
 
         public MyGeotab(MyCredentials _myCredentials)
         {
-            this._api = new API(_myCredentials.Username, _myCredentials.Password, _myCredentials.Session, _myCredentials.Database, _myCredentials.Server);
+            this._api = new API(_myCredentials.UserName, _myCredentials.Password, _myCredentials.SessionId, _myCredentials.Database, _myCredentials.Server);
             if (!_myCredentials.Authenticate)
                 return;
             this.GetLoggedInUser();
@@ -40,13 +44,15 @@ namespace MyGeotabClassLibrary
 
         public List<Device> GetDevices(DeviceSearch deviceSearch = null, bool includeHistoric = true)
         {
-            // ISSUE: unable to decompile the method.
+            if (includeHistoric)
+                return _api.Call<List<Device>>("Get", typeof(Device));
+            return _api.Call<List<Device>>("Get", typeof(Device)).Where(d => d.IsActive()).ToList();
         }
 
         public List<Zone> GetCachedZones()
         {
             MemoryCache @default = MemoryCache.Default;
-            string key = "AllZones_" + this._api.get_Database();
+            string key = "AllZones_" + this._api.Database;
             if (@default.Contains(key, (string)null))
                 return (List<Zone>)@default.Get(key, (string)null);
             DateTimeOffset absoluteExpiration = DateTimeOffset.Now.AddHours(24.0);
@@ -59,7 +65,7 @@ namespace MyGeotabClassLibrary
         public List<Device> GetCachedDevices()
         {
             MemoryCache @default = MemoryCache.Default;
-            string key = "AllDevices_" + this._api.get_Database();
+            string key = "AllDevices_" + this._api.Database;
             if (@default.Contains(key, (string)null))
                 return (List<Device>)@default.Get(key, (string)null);
             DateTimeOffset absoluteExpiration = DateTimeOffset.Now.AddHours(24.0);
@@ -73,8 +79,8 @@ namespace MyGeotabClassLibrary
         {
             if (this.loggedInUser == null && user == null)
                 this.GetLoggedInUser();
-            TimeZoneInfo systemTimeZoneById = TimeZoneInfo.FindSystemTimeZoneById(TimeZoneInfo.OlsonToWindows(this.loggedInUser != null ? this.loggedInUser.get_TimeZoneId() : (user == null ? "" : user.get_TimeZoneId())));
-            return new DateTime?(TimeZoneInfo.ConvertTimeFromUtc(UtcDateValue, systemTimeZoneById));
+            System.TimeZoneInfo systemTimeZoneById = System.TimeZoneInfo.FindSystemTimeZoneById(Geotab.Checkmate.ObjectModel.TimeZoneInfo.OlsonToMachine(this.loggedInUser != null ? this.loggedInUser.TimeZoneId : (user == null ? "" : user.TimeZoneId)));
+            return new DateTime?(System.TimeZoneInfo.ConvertTimeFromUtc(UtcDateValue, systemTimeZoneById));
         }
 
         public FeedResult<LogRecord> GetLogRecordsFeed(LogRecordSearch logRecordSearch, int resultsLimit = 5000)
@@ -146,7 +152,7 @@ namespace MyGeotabClassLibrary
                 string str = "Get";
                 Type type = typeof(User);
                 UserSearch userSearch = new UserSearch();
-                userSearch.set_Name(this._api.get_UserName());
+                userSearch.Name=this._api.UserName;
                 var fAnonymousType0 = new
                 {
                     search = userSearch
@@ -167,7 +173,7 @@ namespace MyGeotabClassLibrary
         public List<Rule> GetCachedRules()
         {
             MemoryCache @default = MemoryCache.Default;
-            string key = "AllRules_" + this._api.get_Database();
+            string key = "AllRules_" + this._api.Database;
             if (@default.Contains(key, (string)null))
                 return (List<Rule>)@default.Get(key, (string)null);
             DateTimeOffset absoluteExpiration = DateTimeOffset.Now.AddDays(7.0);
@@ -233,7 +239,8 @@ namespace MyGeotabClassLibrary
             });
         }
     }
-    public class MyCredentials: Geotab.Checkmate.ObjectModel.Credentials
+
+    public class MyCredentials: Credentials
     {
         public string Server { get; set; }
         /// <summary>
